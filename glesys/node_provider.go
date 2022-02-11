@@ -284,7 +284,7 @@ func boolAddr(b bool) *bool{
 }
 
 func installK3SMaster(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error){
-	nodeToken, err := k3s.InstallK3SServer(ctx, cfg, node.IPV4,node.InstallUser, node.InstallPassword)
+	nodeToken, err := k3s.InstallK3SServer(ctx, node.IPV4,node.InstallUser, node.InstallPassword)
 	if(err!=nil){
 		return cfg, err
 	}

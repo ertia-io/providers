@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	ertia "github.com/ertia-io/config/pkg/entities"
+	"github.com/ertia-io/providers/dependencies"
+	"github.com/ertia-io/providers/k3s"
 	"github.com/hetznercloud/hcloud-go/hcloud"
 	"github.com/rs/zerolog/log"
-	"lube/pkg/dependencies"
-	"lube/pkg/k3s"
-	"lube/pkg/lubeconfig/entities"
 	"strconv"
 	"time"
 )
@@ -26,25 +26,24 @@ func(p *HetznerNodeProvider) Name() string{
 }
 
 
-func(p *HetznerNodeProvider) CreateNode(ctx context.Context, cfg *entities.LubeConfig, node *entities.LubeNode) (*entities.LubeConfig, error){
+func(p *HetznerNodeProvider) CreateNode(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error){
 
-	hc := hcloud.NewClient(hcloud.WithToken(cfg.APIToken))
+	hc := hcloud.NewClient(hcloud.WithToken(cfg.ProviderToken))
 
 
 	sshKeys := []*hcloud.SSHKey{}
 
 
-	for i := range cfg.SSHKeys{
 
-		intId, err := strconv.Atoi(cfg.SSHKeys[i].ProviderID)
-		if(err!=nil){
-			continue
-		}
-
-		sshKeys = append(sshKeys, &hcloud.SSHKey{
-			ID:        intId,
-		})
+	intId, err := strconv.Atoi(cfg.SSHKey.ProviderID)
+	if(err!=nil){
+		return cfg,err
 	}
+
+	sshKeys = append(sshKeys, &hcloud.SSHKey{
+		ID:        intId,
+	})
+
 
 	//Create a kvm in hetzner.
 	result, _, err := hc.Server.Create(context.Background(), hcloud.ServerCreateOpts{
@@ -70,9 +69,9 @@ func(p *HetznerNodeProvider) CreateNode(ctx context.Context, cfg *entities.LubeC
 
 	if (err != nil) {
 		log.Ctx(ctx).Error().Err(err).Send()
-		node.Status = entities.NodeStatusFailing
+		node.Status = ertia.NodeStatusFailing
 		node.Error = err.Error()
-		c, err := cfg.UpdateNode(node)
+		c := cfg.UpdateNode(node)
 		if (err != nil) {
 			log.Ctx(ctx).Error().Err(err).Send()
 		}
@@ -82,18 +81,18 @@ func(p *HetznerNodeProvider) CreateNode(ctx context.Context, cfg *entities.LubeC
 	node.ProviderID = fmt.Sprintf("%d", result.Server.ID)
 	node.IPV4 = result.Server.PublicNet.IPv4.IP
 	node.IPV6 = result.Server.PublicNet.IPv6.IP
-	node.Status = entities.NodeStatusActive
+	node.Status = ertia.NodeStatusActive
 	node.InstallUser = "root"
 
 	//Deploy K3S Next
 	node.Dependencies = append(node.Dependencies, dependencies.K3SDependency)
 
-	return cfg.UpdateNode(node)
+	return cfg.UpdateNode(node),nil
 }
 
-func(p *HetznerNodeProvider)  DeleteNode(ctx context.Context, cfg *entities.LubeConfig, nodeId string) (*entities.LubeConfig, error){
+func(p *HetznerNodeProvider)  DeleteNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
 
-	hc := hcloud.NewClient(hcloud.WithToken(cfg.APIToken))
+	hc := hcloud.NewClient(hcloud.WithToken(cfg.ProviderToken))
 
 	node := cfg.FindNodeByID(nodeId)
 
@@ -108,13 +107,13 @@ func(p *HetznerNodeProvider)  DeleteNode(ctx context.Context, cfg *entities.Lube
 		return cfg, err
 	}
 
-	node.Status = entities.NodeStatusDeleted
-	return cfg.UpdateNode(node)
+	node.Status = ertia.NodeStatusDeleted
+	return cfg.UpdateNode(node),nil
 }
 
 
-func(p *HetznerNodeProvider)  RestartNode(ctx context.Context, cfg *entities.LubeConfig, nodeId string) (*entities.LubeConfig, error){
-	hc := hcloud.NewClient(hcloud.WithToken(cfg.APIToken))
+func(p *HetznerNodeProvider)  RestartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+	hc := hcloud.NewClient(hcloud.WithToken(cfg.ProviderToken))
 
 	node := cfg.FindNodeByID(nodeId)
 	providerId, err := strconv.Atoi(node.ProviderID)
@@ -125,8 +124,8 @@ func(p *HetznerNodeProvider)  RestartNode(ctx context.Context, cfg *entities.Lub
 
 	originalStatus := node.Status
 
-	node.Status = entities.NodeStatusRestarting
-	cfg, err = cfg.UpdateNode(node)
+	node.Status = ertia.NodeStatusRestarting
+	cfg = cfg.UpdateNode(node)
 	if (err != nil) {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
@@ -134,7 +133,7 @@ func(p *HetznerNodeProvider)  RestartNode(ctx context.Context, cfg *entities.Lub
 	_, _, err = hc.Server.Reboot(ctx, &hcloud.Server{ID: providerId})
 
 	node.Status = originalStatus
-	cfg, err = cfg.UpdateNode(node)
+	cfg = cfg.UpdateNode(node)
 	if (err != nil) {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
@@ -143,8 +142,8 @@ func(p *HetznerNodeProvider)  RestartNode(ctx context.Context, cfg *entities.Lub
 	return cfg, nil
 }
 
-func(p *HetznerNodeProvider)  StopNode(ctx context.Context, cfg *entities.LubeConfig, nodeId string) (*entities.LubeConfig, error){
-	hc := hcloud.NewClient(hcloud.WithToken(cfg.APIToken))
+func(p *HetznerNodeProvider)  StopNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+	hc := hcloud.NewClient(hcloud.WithToken(cfg.ProviderToken))
 
 	node := cfg.FindNodeByID(nodeId)
 	providerId, err := strconv.Atoi(node.ProviderID)
@@ -155,8 +154,8 @@ func(p *HetznerNodeProvider)  StopNode(ctx context.Context, cfg *entities.LubeCo
 
 	_, _, err = hc.Server.Shutdown(ctx, &hcloud.Server{ID: providerId})
 
-	node.Status = entities.NodeStatusStopped
-	cfg, err = cfg.UpdateNode(node)
+	node.Status = ertia.NodeStatusStopped
+	cfg = cfg.UpdateNode(node)
 	if (err != nil) {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
@@ -165,21 +164,21 @@ func(p *HetznerNodeProvider)  StopNode(ctx context.Context, cfg *entities.LubeCo
 	return cfg, nil
 }
 
-func(p *HetznerNodeProvider)  StartNode(ctx context.Context, cfg *entities.LubeConfig, nodeId string) (*entities.LubeConfig, error){
+func(p *HetznerNodeProvider)  StartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
 	return p.RestartNode(ctx, cfg, nodeId)
 }
 
-func(p *HetznerNodeProvider)  ReplaceNode(ctx context.Context, cfg *entities.LubeConfig, nodeId string) (*entities.LubeConfig, error){
+func(p *HetznerNodeProvider)  ReplaceNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
 	node := cfg.FindNodeByID(nodeId)
 	return p.CreateNode(ctx, cfg, node)
 }
 
 
-func(p *HetznerNodeProvider) SyncNodes(ctx context.Context, cfg *entities.LubeConfig) (*entities.LubeConfig, error) {
+func(p *HetznerNodeProvider) SyncNodes(ctx context.Context, cfg *ertia.Project) (*ertia.Project, error) {
 	var err error
 	for mi := range cfg.Nodes {
 		switch (cfg.Nodes[mi].Status){
-		case entities.NodeStatusNew:
+		case ertia.NodeStatusNew:
 			cfg, err = p.CreateNode(ctx, cfg,&cfg.Nodes[mi])
 			if(err!=nil){
 				//TODO Set key to failing and do NOT continue
@@ -192,7 +191,7 @@ func(p *HetznerNodeProvider) SyncNodes(ctx context.Context, cfg *entities.LubeCo
 	return cfg, nil
 }
 
-func (p *HetznerNodeProvider) SyncDependencies(ctx context.Context, cfg *entities.LubeConfig) (*entities.LubeConfig, error) {
+func (p *HetznerNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.Project) (*ertia.Project, error) {
 
 	var err error
 
@@ -226,17 +225,17 @@ func (p *HetznerNodeProvider) SyncDependencies(ctx context.Context, cfg *entitie
 
 						for di := range cfg.Nodes[i].Dependencies{
 							if(cfg.Nodes[i].Dependencies[di].Name == dependencies.K3SDependency.Name){
-								cfg.Nodes[i].Dependencies[di].Status = entities.DependencyStatusReady
+								cfg.Nodes[i].Dependencies[di].Status = ertia.DependencyStatusReady
 							}
 						}
 
-						cfg, err = cfg.UpdateNode(&cfg.Nodes[i])
+						cfg= cfg.UpdateNode(&cfg.Nodes[i])
 						if(err!=nil){
 							return cfg, err
 						}
 
 					} else {
-						masterNode := cfg.FindClusterMasterNode(cfg.Nodes[i].ClusterName)
+						masterNode := cfg.FindMasterNode()
 						if (masterNode.Fulfils(dependencies.K3SDependency.Name)) {
 							cfg.Nodes[i].MasterIP = masterNode.IPV4
 							cfg.Nodes[i].NodeToken = masterNode.NodeToken
@@ -252,14 +251,11 @@ func (p *HetznerNodeProvider) SyncDependencies(ctx context.Context, cfg *entitie
 
 							for di := range cfg.Nodes[i].Dependencies{
 								if(cfg.Nodes[i].Dependencies[di].Name == dependencies.K3SDependency.Name){
-									cfg.Nodes[i].Dependencies[di].Status = entities.DependencyStatusReady
+									cfg.Nodes[i].Dependencies[di].Status = ertia.DependencyStatusReady
 								}
 							}
 
-							cfg, err = cfg.UpdateNode(&cfg.Nodes[i])
-							if(err!=nil){
-								return cfg, err
-							}
+							cfg = cfg.UpdateNode(&cfg.Nodes[i])
 
 						} else {
 							//TODO: Maybe keep track of dependency status?
@@ -282,7 +278,7 @@ func boolAddr(b bool) *bool{
 	return &b
 }
 
-func installK3SMaster(ctx context.Context, cfg *entities.LubeConfig, node *entities.LubeNode) (*entities.LubeConfig, error){
+func installK3SMaster(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error){
 	nodeToken, err := k3s.InstallK3SServer(ctx, node.IPV4,node.InstallUser, node.InstallPassword)
 	if(err!=nil){
 		return cfg, err
@@ -290,14 +286,10 @@ func installK3SMaster(ctx context.Context, cfg *entities.LubeConfig, node *entit
 
 	for di := range node.Dependencies{
 		if(node.Dependencies[di].Name == dependencies.K3SDependency.Name){
-			node.Dependencies[di].Status = entities.DependencyStatusReady
+			node.Dependencies[di].Status = ertia.DependencyStatusReady
 		}
 	}
 
 	node.NodeToken = nodeToken
-	cfg, err = cfg.UpdateNode(node)
-	if(err!=nil){
-		return cfg, err
-	}
-	return cfg, nil
+	return cfg.UpdateNode(node),nil
 }

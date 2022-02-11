@@ -25,7 +25,7 @@ func(p *GlesysKeyProvider) CreateKey(ctx context.Context, cfg *cfg.Project, key 
 	return cfg,nil
 }
 
-func(p *GlesysKeyProvider) DeleteKey(ctx context.Context, cfg *cfg.Project, keyId string) (*cfg.Project, error) {
+func(p *GlesysKeyProvider) DeleteKey(ctx context.Context, cfg *cfg.Project) (*cfg.Project, error) {
 	return cfg,nil
 }
 

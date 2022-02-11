@@ -2,8 +2,8 @@ package k3d
 
 import (
 	"context"
+	ertia "github.com/ertia-io/config/pkg/entities"
 	"github.com/rs/zerolog/log"
-	"lube/pkg/lubeconfig/entities"
 )
 
 type K3DNodeProvider struct{
@@ -18,47 +18,47 @@ func(p *K3DNodeProvider) Name() string{
 	return "k3d"
 }
 
-func(p *K3DNodeProvider)  CreateNode(ctx context.Context, cfg *entities.LubeConfig, node *entities.LubeNode) (*entities.LubeConfig, error){
-	node.Status = entities.NodeStatusActive
+func(p *K3DNodeProvider)  CreateNode(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error){
+	node.Status = ertia.NodeStatusActive
 	cfg.UpdateNode(node)
 	return cfg,nil
 }
-func(p *K3DNodeProvider)  DeleteNode(ctx context.Context, cfg *entities.LubeConfig, nodeId string) (*entities.LubeConfig, error){
+func(p *K3DNodeProvider)  DeleteNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
 	node := cfg.FindNodeByID(nodeId)
-	node.Status = entities.NodeStatusDeleted
+	node.Status = ertia.NodeStatusDeleted
 	cfg.UpdateNode(node)
 	return cfg,nil
 }
 
 
-func(p *K3DNodeProvider)  RestartNode(ctx context.Context, cfg *entities.LubeConfig, nodeId string) (*entities.LubeConfig, error){
+func(p *K3DNodeProvider)  RestartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
 	node := cfg.FindNodeByID(nodeId)
-	if(node.Status!=entities.NodeStatusReady){
-		node.Status = entities.NodeStatusActive
+	if(node.Status!=ertia.NodeStatusReady){
+		node.Status = ertia.NodeStatusActive
 	}
 	cfg.UpdateNode(node)
 	return cfg,nil
 }
 
-func(p *K3DNodeProvider)  StopNode(ctx context.Context, cfg *entities.LubeConfig, nodeId string) (*entities.LubeConfig, error){
+func(p *K3DNodeProvider)  StopNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
 	node := cfg.FindNodeByID(nodeId)
-	node.Status = entities.NodeStatusStopped
+	node.Status = ertia.NodeStatusStopped
 	cfg.UpdateNode(node)
 	return cfg,nil
 }
 
-func(p *K3DNodeProvider)  StartNode(ctx context.Context, cfg *entities.LubeConfig, nodeId string) (*entities.LubeConfig,error){
+func(p *K3DNodeProvider)  StartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project,error){
 	node := cfg.FindNodeByID(nodeId)
-	node.Status = entities.NodeStatusActive
+	node.Status = ertia.NodeStatusActive
 
 	cfg.UpdateNode(node)
 	return cfg,nil
 }
 
-func(p *K3DNodeProvider)  ReplaceNode(ctx context.Context, cfg *entities.LubeConfig, nodeId string) (*entities.LubeConfig, error){
+func(p *K3DNodeProvider)  ReplaceNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
 	node := cfg.FindNodeByID(nodeId)
-	if(node.Status!=entities.NodeStatusReady){
-		node.Status = entities.NodeStatusActive
+	if(node.Status!=ertia.NodeStatusReady){
+		node.Status = ertia.NodeStatusActive
 	}
 
 	cfg.UpdateNode(node)
@@ -66,11 +66,11 @@ func(p *K3DNodeProvider)  ReplaceNode(ctx context.Context, cfg *entities.LubeCon
 }
 
 
-func(p *K3DNodeProvider) SyncNodes(ctx context.Context, cfg *entities.LubeConfig) (*entities.LubeConfig, error) {
+func(p *K3DNodeProvider) SyncNodes(ctx context.Context, cfg *ertia.Project) (*ertia.Project, error) {
 	var err error
 	for mi := range cfg.Nodes {
 		switch (cfg.Nodes[mi].Status){
-		case entities.NodeStatusNew:
+		case ertia.NodeStatusNew:
 			cfg, err = p.CreateNode(ctx, cfg,&cfg.Nodes[mi])
 			if(err!=nil){
 				//TODO Set key to failing and do NOT continue
@@ -83,15 +83,11 @@ func(p *K3DNodeProvider) SyncNodes(ctx context.Context, cfg *entities.LubeConfig
 	return cfg, nil
 }
 
-func(p *K3DNodeProvider) SyncDependencies(ctx context.Context, cfg *entities.LubeConfig) (*entities.LubeConfig, error){
-	var err error
+func(p *K3DNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.Project) (*ertia.Project, error){
 	for i := range cfg.Nodes {
-		if(cfg.Nodes[i].Status == entities.NodeStatusActive){
-			cfg.Nodes[i].Status = entities.NodeStatusReady
-			cfg, err =cfg.UpdateNode(&cfg.Nodes[i])
-			if(err!=nil){
-				return cfg, err
-			}
+		if(cfg.Nodes[i].Status == ertia.NodeStatusActive){
+			cfg.Nodes[i].Status = ertia.NodeStatusReady
+			cfg =cfg.UpdateNode(&cfg.Nodes[i])
 		}
 	}
 	return cfg, nil
