@@ -41,6 +41,24 @@ func getK3SYamlCmd() string {
 	return fmt.Sprintf( "cat /etc/rancher/k3s/k3s.yaml")
 }
 
+func UploadK3SInstaller(c *goph.Client, id string) (error) {
+	ftp, err := c.NewSftp()
+	if err != nil {
+		return nil
+	}
+	defer ftp.Close()
+
+	remote, err := ftp.Create("/tmp/"+id)
+	if err != nil {
+		return err
+	}
+	defer remote.Close()
+
+	_, err = remote.Write([]byte(installer))
+
+	return err
+}
+
 func InstallK3SServer(ctx context.Context, ip net.IP, user string, password string) (string, error) {
 
 	fmt.Println("Installing K3S Server")
@@ -59,7 +77,7 @@ func InstallK3SServer(ctx context.Context, ip net.IP, user string, password stri
 
 	id := ksuid.New().String()
 
-	err = sshClient.Upload("/home/robin/repos/fabled/lube/pkg/k3s/install_k3s.sh", "/tmp/"+id)
+	err = UploadK3SInstaller(sshClient, id)
 	if(err!=nil){
 		fmt.Println("Error:", err.Error())
 		return "",err
@@ -128,7 +146,8 @@ func InstallK3SAgent(ctx context.Context, node ertia.Node, masterIp string) (err
 
 	id := ksuid.New().String()
 
-	err = sshClient.Upload("/home/robin/repos/fabled/lube/pkg/k3s/install_k3s.sh", "/tmp/"+id)
+
+	err = UploadK3SInstaller(sshClient, id)
 	if(err!=nil){
 		fmt.Println("Error:", err.Error())
 		return err

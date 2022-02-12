@@ -58,7 +58,7 @@ func(p *HetznerKeyProvider) CreateKey(ctx context.Context, cfg *ertia.Project, k
 	return cfg, err
 }
 
-func(p *HetznerKeyProvider) DeleteKey(ctx context.Context, cfg *ertia.Project, keyId string) (*ertia.Project, error) {
+func(p *HetznerKeyProvider) DeleteKey(ctx context.Context, cfg *ertia.Project) (*ertia.Project, error) {
 	key := cfg.SSHKey
 	pid, err := strconv.Atoi(key.ProviderID)
 	if(err!=nil){
