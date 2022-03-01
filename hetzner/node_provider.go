@@ -13,37 +13,31 @@ import (
 	"time"
 )
 
-type HetznerNodeProvider struct{
-
+type HetznerNodeProvider struct {
 }
 
 func NewNodeProvider() *HetznerNodeProvider {
 	return &HetznerNodeProvider{}
 }
 
-func(p *HetznerNodeProvider) Name() string{
+func (p *HetznerNodeProvider) Name() string {
 	return "hetzner"
 }
 
-
-func(p *HetznerNodeProvider) CreateNode(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error){
+func (p *HetznerNodeProvider) CreateNode(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error) {
 
 	hc := hcloud.NewClient(hcloud.WithToken(cfg.ProviderToken))
 
-
 	sshKeys := []*hcloud.SSHKey{}
 
-
-
 	intId, err := strconv.Atoi(cfg.SSHKey.ProviderID)
-	if(err!=nil){
-		return cfg,err
+	if err != nil {
+		return cfg, err
 	}
 
 	sshKeys = append(sshKeys, &hcloud.SSHKey{
-		ID:        intId,
+		ID: intId,
 	})
-
 
 	//Create a kvm in hetzner.
 	result, _, err := hc.Server.Create(context.Background(), hcloud.ServerCreateOpts{
@@ -66,13 +60,12 @@ func(p *HetznerNodeProvider) CreateNode(ctx context.Context, cfg *ertia.Project,
 		PlacementGroup:   nil,
 	})
 
-
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		node.Status = ertia.NodeStatusFailing
 		node.Error = err.Error()
 		c := cfg.UpdateNode(node)
-		if (err != nil) {
+		if err != nil {
 			log.Ctx(ctx).Error().Err(err).Send()
 		}
 		cfg = c
@@ -87,37 +80,36 @@ func(p *HetznerNodeProvider) CreateNode(ctx context.Context, cfg *ertia.Project,
 	//Deploy K3S Next
 	node.Dependencies = append(node.Dependencies, dependencies.K3SDependency)
 
-	return cfg.UpdateNode(node),nil
+	return cfg.UpdateNode(node), nil
 }
 
-func(p *HetznerNodeProvider)  DeleteNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+func (p *HetznerNodeProvider) DeleteNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 
 	hc := hcloud.NewClient(hcloud.WithToken(cfg.ProviderToken))
 
 	node := cfg.FindNodeByID(nodeId)
 
 	providerId, err := strconv.Atoi(node.ProviderID)
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
 	_, err = hc.Server.Delete(ctx, &hcloud.Server{ID: providerId})
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
 
 	node.Status = ertia.NodeStatusDeleted
-	return cfg.UpdateNode(node),nil
+	return cfg.UpdateNode(node), nil
 }
 
-
-func(p *HetznerNodeProvider)  RestartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+func (p *HetznerNodeProvider) RestartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 	hc := hcloud.NewClient(hcloud.WithToken(cfg.ProviderToken))
 
 	node := cfg.FindNodeByID(nodeId)
 	providerId, err := strconv.Atoi(node.ProviderID)
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
@@ -126,7 +118,7 @@ func(p *HetznerNodeProvider)  RestartNode(ctx context.Context, cfg *ertia.Projec
 
 	node.Status = ertia.NodeStatusRestarting
 	cfg = cfg.UpdateNode(node)
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
@@ -134,7 +126,7 @@ func(p *HetznerNodeProvider)  RestartNode(ctx context.Context, cfg *ertia.Projec
 
 	node.Status = originalStatus
 	cfg = cfg.UpdateNode(node)
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
@@ -142,12 +134,12 @@ func(p *HetznerNodeProvider)  RestartNode(ctx context.Context, cfg *ertia.Projec
 	return cfg, nil
 }
 
-func(p *HetznerNodeProvider)  StopNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+func (p *HetznerNodeProvider) StopNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 	hc := hcloud.NewClient(hcloud.WithToken(cfg.ProviderToken))
 
 	node := cfg.FindNodeByID(nodeId)
 	providerId, err := strconv.Atoi(node.ProviderID)
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
@@ -156,7 +148,7 @@ func(p *HetznerNodeProvider)  StopNode(ctx context.Context, cfg *ertia.Project, 
 
 	node.Status = ertia.NodeStatusStopped
 	cfg = cfg.UpdateNode(node)
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
@@ -164,23 +156,22 @@ func(p *HetznerNodeProvider)  StopNode(ctx context.Context, cfg *ertia.Project, 
 	return cfg, nil
 }
 
-func(p *HetznerNodeProvider)  StartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+func (p *HetznerNodeProvider) StartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 	return p.RestartNode(ctx, cfg, nodeId)
 }
 
-func(p *HetznerNodeProvider)  ReplaceNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+func (p *HetznerNodeProvider) ReplaceNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 	node := cfg.FindNodeByID(nodeId)
 	return p.CreateNode(ctx, cfg, node)
 }
 
-
-func(p *HetznerNodeProvider) SyncNodes(ctx context.Context, cfg *ertia.Project) (*ertia.Project, error) {
+func (p *HetznerNodeProvider) SyncNodes(ctx context.Context, cfg *ertia.Project) (*ertia.Project, error) {
 	var err error
 	for mi := range cfg.Nodes {
-		switch (cfg.Nodes[mi].Status){
+		switch cfg.Nodes[mi].Status {
 		case ertia.NodeStatusNew:
-			cfg, err = p.CreateNode(ctx, cfg,&cfg.Nodes[mi])
-			if(err!=nil){
+			cfg, err = p.CreateNode(ctx, cfg, &cfg.Nodes[mi])
+			if err != nil {
 				//TODO Set key to failing and do NOT continue
 				log.Ctx(ctx).Err(err)
 				return cfg, err
@@ -198,59 +189,59 @@ func (p *HetznerNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.P
 	for {
 		allDone := true
 		for i := range cfg.Nodes {
-			if (cfg.Nodes[i].Requires(dependencies.K3SDependency.Name)) {
-				fmt.Printf("Node %s requires %s \n",cfg.Nodes[i].Name, dependencies.K3SDependency.Name)
+			if cfg.Nodes[i].Requires(dependencies.K3SDependency.Name) {
+				fmt.Printf("Node %s requires %s \n", cfg.Nodes[i].Name, dependencies.K3SDependency.Name)
 				allDone = false
-				if (cfg.Nodes[i].IsMaster) {
+				if cfg.Nodes[i].IsMaster {
 					cfg, err = installK3SMaster(ctx, cfg, &cfg.Nodes[i])
-					if (err != nil) {
-						if(errors.Is(err,k3s.ErrorSSHNotReady)){
+					if err != nil {
+						if errors.Is(err, k3s.ErrorSSHNotReady) {
 							err = nil
-							time.Sleep(1*time.Second)
+							time.Sleep(1 * time.Second)
 							break
 						}
 						return cfg, err
 					}
 				} else {
-					if (cfg.Nodes[i].MasterIP != nil && cfg.Nodes[i].NodeToken != "") {
+					if cfg.Nodes[i].MasterIP != nil && cfg.Nodes[i].NodeToken != "" {
 						err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], cfg.Nodes[i].MasterIP.String())
-						if (err != nil) {
-							if(errors.Is(err,k3s.ErrorSSHNotReady)){
+						if err != nil {
+							if errors.Is(err, k3s.ErrorSSHNotReady) {
 								err = nil
-								time.Sleep(1*time.Second)
+								time.Sleep(1 * time.Second)
 								break
 							}
 							return cfg, err
 						}
 
-						for di := range cfg.Nodes[i].Dependencies{
-							if(cfg.Nodes[i].Dependencies[di].Name == dependencies.K3SDependency.Name){
+						for di := range cfg.Nodes[i].Dependencies {
+							if cfg.Nodes[i].Dependencies[di].Name == dependencies.K3SDependency.Name {
 								cfg.Nodes[i].Dependencies[di].Status = ertia.DependencyStatusReady
 							}
 						}
 
-						cfg= cfg.UpdateNode(&cfg.Nodes[i])
-						if(err!=nil){
+						cfg = cfg.UpdateNode(&cfg.Nodes[i])
+						if err != nil {
 							return cfg, err
 						}
 
 					} else {
 						masterNode := cfg.FindMasterNode()
-						if (masterNode.Fulfils(dependencies.K3SDependency.Name)) {
+						if masterNode.Fulfils(dependencies.K3SDependency.Name) {
 							cfg.Nodes[i].MasterIP = masterNode.IPV4
 							cfg.Nodes[i].NodeToken = masterNode.NodeToken
 							err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], masterNode.IPV4.String())
-							if (err != nil) {
-								if(errors.Is(err,k3s.ErrorSSHNotReady)){
+							if err != nil {
+								if errors.Is(err, k3s.ErrorSSHNotReady) {
 									err = nil
-									time.Sleep(1*time.Second)
+									time.Sleep(1 * time.Second)
 									break
 								}
 								return cfg, err
 							}
 
-							for di := range cfg.Nodes[i].Dependencies{
-								if(cfg.Nodes[i].Dependencies[di].Name == dependencies.K3SDependency.Name){
+							for di := range cfg.Nodes[i].Dependencies {
+								if cfg.Nodes[i].Dependencies[di].Name == dependencies.K3SDependency.Name {
 									cfg.Nodes[i].Dependencies[di].Status = ertia.DependencyStatusReady
 								}
 							}
@@ -265,7 +256,7 @@ func (p *HetznerNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.P
 				}
 			}
 		}
-		if(allDone){
+		if allDone {
 			fmt.Println("All dependencies handled")
 			break
 		}
@@ -274,22 +265,22 @@ func (p *HetznerNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.P
 	return cfg, nil
 }
 
-func boolAddr(b bool) *bool{
+func boolAddr(b bool) *bool {
 	return &b
 }
 
-func installK3SMaster(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error){
-	nodeToken, err := k3s.InstallK3SServer(ctx, node.IPV4,node.InstallUser, node.InstallPassword)
-	if(err!=nil){
+func installK3SMaster(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error) {
+	nodeToken, err := k3s.InstallK3SServer(ctx, node.IPV4, node.InstallUser, node.InstallPassword)
+	if err != nil {
 		return cfg, err
 	}
 
-	for di := range node.Dependencies{
-		if(node.Dependencies[di].Name == dependencies.K3SDependency.Name){
+	for di := range node.Dependencies {
+		if node.Dependencies[di].Name == dependencies.K3SDependency.Name {
 			node.Dependencies[di].Status = ertia.DependencyStatusReady
 		}
 	}
 
 	node.NodeToken = nodeToken
-	return cfg.UpdateNode(node),nil
+	return cfg.UpdateNode(node), nil
 }

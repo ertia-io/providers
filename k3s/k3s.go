@@ -24,9 +24,8 @@ func getServerInstallCmd(id string) string {
 	return fmt.Sprintf("/tmp/%s", id)
 }
 
-
 func getAgentInstallCmd(nodeToken string, masterIp string, id string) string {
-	return fmt.Sprintf("K3S_URL=https://%s:6443 K3S_TOKEN=%s /tmp/%s",  masterIp,strings.ReplaceAll(nodeToken,"\n",""), id)
+	return fmt.Sprintf("K3S_URL=https://%s:6443 K3S_TOKEN=%s /tmp/%s", masterIp, strings.ReplaceAll(nodeToken, "\n", ""), id)
 }
 
 func chmodInstaller(id string) string {
@@ -34,21 +33,21 @@ func chmodInstaller(id string) string {
 }
 
 func getNodeTokenCmd() string {
-	return fmt.Sprintf( "cat /var/lib/rancher/k3s/server/node-token")
+	return fmt.Sprintf("cat /var/lib/rancher/k3s/server/node-token")
 }
 
 func getK3SYamlCmd() string {
-	return fmt.Sprintf( "cat /etc/rancher/k3s/k3s.yaml")
+	return fmt.Sprintf("cat /etc/rancher/k3s/k3s.yaml")
 }
 
-func UploadK3SInstaller(c *goph.Client, id string) (error) {
+func UploadK3SInstaller(c *goph.Client, id string) error {
 	ftp, err := c.NewSftp()
 	if err != nil {
 		return nil
 	}
 	defer ftp.Close()
 
-	remote, err := ftp.Create("/tmp/"+id)
+	remote, err := ftp.Create("/tmp/" + id)
 	if err != nil {
 		return err
 	}
@@ -63,8 +62,8 @@ func InstallK3SServer(ctx context.Context, ip net.IP, user string, password stri
 
 	fmt.Println("Installing K3S Server")
 
-	sshClient,err :=tryEstablishSSHConnection(ctx,ip.String(), user, password)
-	if(err!=nil){
+	sshClient, err := tryEstablishSSHConnection(ctx, ip.String(), user, password)
+	if err != nil {
 		fmt.Println("Server not ready for SSH, retry")
 		log.Ctx(ctx).Err(err).Send()
 		return "", err
@@ -72,68 +71,66 @@ func InstallK3SServer(ctx context.Context, ip net.IP, user string, password stri
 
 	defer sshClient.Close()
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second * 60)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*60)
 	defer cancel()
 
 	id := ksuid.New().String()
 
 	err = UploadK3SInstaller(sshClient, id)
-	if(err!=nil){
+	if err != nil {
 		fmt.Println("Error:", err.Error())
-		return "",err
+		return "", err
 	}
 
 	out, err := sshClient.RunContextEscalated(timeoutCtx, chmodInstaller(id))
-	if(err!=nil){
+	if err != nil {
 		fmt.Println("Error:", string(out))
 		log.Ctx(ctx).Err(err).Msg(string(out))
-		return "",err
+		return "", err
 	}
 
-
 	out, err = sshClient.RunContextEscalated(timeoutCtx, getServerInstallCmd(id))
-	if(err!=nil){
-		fmt.Println("Err: "+err.Error())
+	if err != nil {
+		fmt.Println("Err: " + err.Error())
 		fmt.Println(string(out))
 		log.Ctx(ctx).Err(err).Msg(string(out))
-		return string(out),errors.New(fmt.Sprintf("Error: %s", out))
+		return string(out), errors.New(fmt.Sprintf("Error: %s", out))
 	}
 
 	nodeToken, err := sshClient.RunContextEscalated(timeoutCtx, getNodeTokenCmd())
-	if(err!=nil){
+	if err != nil {
 
-		fmt.Println("OUT ",string(nodeToken))
+		fmt.Println("OUT ", string(nodeToken))
 		log.Ctx(ctx).Err(err).Msg(string(nodeToken))
-		return "",err
+		return "", err
 	}
-
 
 	out, err = sshClient.RunContextEscalated(timeoutCtx, getK3SYamlCmd())
-	if(err!=nil){
+	if err != nil {
 
-		fmt.Println("Could not fetch K3S Yaml ",string(out))
+		fmt.Println("Could not fetch K3S Yaml ", string(out))
 		log.Ctx(ctx).Err(err).Msg(string(out))
-		return "",errors.New(fmt.Sprintf("Error: %s", out))
+		return "", errors.New(fmt.Sprintf("Error: %s", out))
 	}
 
-	out = []byte(strings.ReplaceAll(string(out),"127.0.0.1", ip.String()))
+	out = []byte(strings.ReplaceAll(string(out), "127.0.0.1", ip.String()))
 
 	err = ioutil.WriteFile(config.ErtiaKubePath()+"/config", out, 0600)
 
-	if(err!=nil){
-		fmt.Println("Could not write Kubeconfig Yaml ",string(out))
+	if err != nil {
+		fmt.Println("Could not write Kubeconfig Yaml ", string(out))
 		log.Ctx(ctx).Err(err).Msg(string(out))
-		return "",err
+		return "", err
 	}
 	fmt.Println("NT: ", nodeToken)
 
 	return string(nodeToken), nil
 }
 
-func InstallK3SAgent(ctx context.Context, node ertia.Node, masterIp string) (error) {
+func InstallK3SAgent(ctx context.Context, node ertia.Node, masterIp string) error {
 	fmt.Println("Installing K3S Agent")
-	sshClient,err :=tryEstablishSSHConnection(ctx,node.IPV4.String(), node.InstallUser, node.InstallPassword)
-	if(err!=nil){
+	sshClient, err := tryEstablishSSHConnection(ctx, node.IPV4.String(), node.InstallUser, node.InstallPassword)
+	if err != nil {
 		fmt.Println("Server not ready for SSH, retry")
 		log.Ctx(ctx).Err(err).Send()
 		return err
@@ -141,28 +138,26 @@ func InstallK3SAgent(ctx context.Context, node ertia.Node, masterIp string) (err
 
 	defer sshClient.Close()
 
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second * 60)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*60)
 	defer cancel()
 
 	id := ksuid.New().String()
 
-
 	err = UploadK3SInstaller(sshClient, id)
-	if(err!=nil){
+	if err != nil {
 		fmt.Println("Error:", err.Error())
 		return err
 	}
 
 	out, err := sshClient.RunContextEscalated(timeoutCtx, chmodInstaller(id))
-	if(err!=nil){
+	if err != nil {
 		fmt.Println("Error:", string(out))
 		log.Ctx(ctx).Err(err).Msg(string(out))
 		return err
 	}
 
-
 	out, err = sshClient.RunContextEscalated(timeoutCtx, getAgentInstallCmd(node.NodeToken, masterIp, id))
-	if(err!=nil){
+	if err != nil {
 		fmt.Println("Error:", string(out))
 		log.Ctx(ctx).Err(err).Msg(string(out))
 		return err
@@ -170,27 +165,26 @@ func InstallK3SAgent(ctx context.Context, node ertia.Node, masterIp string) (err
 	return nil
 }
 
-func tryEstablishSSHConnection(ctx context.Context,ipStr string, user string, password string) (*goph.Client,error){
+func tryEstablishSSHConnection(ctx context.Context, ipStr string, user string, password string) (*goph.Client, error) {
 
 	keyFiles, err := ioutil.ReadDir(config.ErtiaKeysPath())
-	if(err!=nil){
+	if err != nil {
 		return nil, err
 	}
 
 	var client *goph.Client
 	for _, keyFile := range keyFiles {
 
-		if(strings.Contains(keyFile.Name(),".pub")){
+		if strings.Contains(keyFile.Name(), ".pub") {
 			continue
 		}
 		// Start new ssh connection with private key.
-		auth, err := goph.Key(filepath.Join(config.ErtiaKeysPath(),keyFile.Name()), "")
+		auth, err := goph.Key(filepath.Join(config.ErtiaKeysPath(), keyFile.Name()), "")
 		if err != nil {
 			fmt.Println(err)
 			log.Ctx(ctx).Err(err).Send()
 			continue
 		}
-
 
 		client, err = goph.NewUnknown(user, ipStr, auth)
 		if err != nil {
@@ -204,10 +198,9 @@ func tryEstablishSSHConnection(ctx context.Context,ipStr string, user string, pa
 		return client, nil
 	}
 
-
 	return nil, ErrorSSHNotReady
 }
 
-func InitK3SServer(){
+func InitK3SServer() {
 
 }

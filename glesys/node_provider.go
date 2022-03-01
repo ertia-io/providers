@@ -24,53 +24,47 @@ var DefaultGlesysNode = glesys.CreateServerParams{
 	Memory:       2048,
 	Platform:     "KVM",
 	Storage:      100,
-	IPv4: "any",
-	IPv6: "any",
+	IPv4:         "any",
+	IPv6:         "any",
 	Template:     "debian-11",
 }
 
-
-type GlesysNodeProvider struct{
+type GlesysNodeProvider struct {
 	Client *glesys.Client
 }
 
 func NewNodeProvider(cfg *ertia.Project) *GlesysNodeProvider {
 	return &GlesysNodeProvider{
-		Client: glesys.NewClient(cfg.ProviderID, cfg.ProviderToken,ErtiaUserAgent),
+		Client: glesys.NewClient(cfg.ProviderID, cfg.ProviderToken, ErtiaUserAgent),
 	}
 }
 
-func(p *GlesysNodeProvider) Name() string{
+func (p *GlesysNodeProvider) Name() string {
 	return "glesys"
 }
 
-
-func(p *GlesysNodeProvider) CreateNode(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error){
+func (p *GlesysNodeProvider) CreateNode(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error) {
 	defaultNode := DefaultGlesysNode
 
 	defaultNode.PublicKey = cfg.SSHKey.PublicKey
 	defaultNode.Hostname = node.Name
 
-
-
 	defaultNode.Password = string(uuid.NewUUID())
 
 	defaultNode.Users = []glesys.User{{
-		Username:   "ertia",
+		Username: "ertia",
 		PublicKeys: []string{
 			defaultNode.PublicKey,
 		},
 		Password: defaultNode.Password,
 	}}
 
-
 	node.InstallPassword = defaultNode.Password
 	node.InstallUser = "ertia"
 
-
 	result, err := p.Client.Servers.Create(ctx, defaultNode)
 
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		node.Status = ertia.NodeStatusFailing
 		node.Error = err.Error()
@@ -81,17 +75,17 @@ func(p *GlesysNodeProvider) CreateNode(ctx context.Context, cfg *ertia.Project, 
 
 	var foundIPV4 = false
 	var foundIPV6 = false
-	for _, ipItem := range result.IPList{
-		if(foundIPV4 && foundIPV6){
+	for _, ipItem := range result.IPList {
+		if foundIPV4 && foundIPV6 {
 			break
 		}
 
-		if(!foundIPV6){
-			if(ipItem.Version ==6){
+		if !foundIPV6 {
+			if ipItem.Version == 6 {
 				foundIPV6 = true
 				node.IPV6 = net.ParseIP(ipItem.Address)
 			}
-			if(ipItem.Version == 4){
+			if ipItem.Version == 4 {
 				foundIPV4 = true
 				node.IPV4 = net.ParseIP(ipItem.Address)
 			}
@@ -104,14 +98,14 @@ func(p *GlesysNodeProvider) CreateNode(ctx context.Context, cfg *ertia.Project, 
 	//Deploy K3S Next
 	node.Dependencies = append(node.Dependencies, dependencies.K3SDependency)
 
-	return cfg.UpdateNode(node),nil
+	return cfg.UpdateNode(node), nil
 }
 
-func(p *GlesysNodeProvider)  DeleteNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+func (p *GlesysNodeProvider) DeleteNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 	node := cfg.FindNodeByID(nodeId)
-	err := p.Client.Servers.Destroy(ctx,node.ProviderID, glesys.DestroyServerParams{false} )
+	err := p.Client.Servers.Destroy(ctx, node.ProviderID, glesys.DestroyServerParams{false})
 
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
@@ -120,8 +114,7 @@ func(p *GlesysNodeProvider)  DeleteNode(ctx context.Context, cfg *ertia.Project,
 	return cfg.UpdateNode(node), nil
 }
 
-
-func(p *GlesysNodeProvider)  RestartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+func (p *GlesysNodeProvider) RestartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 	node := cfg.FindNodeByID(nodeId)
 
 	originalStatus := node.Status
@@ -129,14 +122,13 @@ func(p *GlesysNodeProvider)  RestartNode(ctx context.Context, cfg *ertia.Project
 	node.Status = ertia.NodeStatusRestarting
 	cfg = cfg.UpdateNode(node)
 
-
 	cfg, err := p.StopNode(ctx, cfg, nodeId)
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
 	cfg, err = p.StartNode(ctx, cfg, nodeId)
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
@@ -146,13 +138,12 @@ func(p *GlesysNodeProvider)  RestartNode(ctx context.Context, cfg *ertia.Project
 
 }
 
-func(p *GlesysNodeProvider)  StopNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+func (p *GlesysNodeProvider) StopNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 
 	node := cfg.FindNodeByID(nodeId)
 
-
 	err := p.Client.Servers.Stop(ctx, node.ProviderID, glesys.StopServerParams{})
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
@@ -162,12 +153,11 @@ func(p *GlesysNodeProvider)  StopNode(ctx context.Context, cfg *ertia.Project, n
 
 }
 
-
-func(p *GlesysNodeProvider)  StartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+func (p *GlesysNodeProvider) StartNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 	node := cfg.FindNodeByID(nodeId)
 
 	err := p.Client.Servers.Start(ctx, node.ProviderID)
-	if (err != nil) {
+	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
 		return cfg, err
 	}
@@ -176,19 +166,18 @@ func(p *GlesysNodeProvider)  StartNode(ctx context.Context, cfg *ertia.Project, 
 	return cfg.UpdateNode(node), nil
 }
 
-func(p *GlesysNodeProvider)  ReplaceNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error){
+func (p *GlesysNodeProvider) ReplaceNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 	node := cfg.FindNodeByID(nodeId)
 	return p.CreateNode(ctx, cfg, node)
 }
 
-
-func(p *GlesysNodeProvider) SyncNodes(ctx context.Context, cfg *ertia.Project) (*ertia.Project, error) {
+func (p *GlesysNodeProvider) SyncNodes(ctx context.Context, cfg *ertia.Project) (*ertia.Project, error) {
 	var err error
 	for mi := range cfg.Nodes {
-		switch (cfg.Nodes[mi].Status){
+		switch cfg.Nodes[mi].Status {
 		case ertia.NodeStatusNew:
-			cfg, err = p.CreateNode(ctx, cfg,&cfg.Nodes[mi])
-			if(err!=nil){
+			cfg, err = p.CreateNode(ctx, cfg, &cfg.Nodes[mi])
+			if err != nil {
 				//TODO Set key to failing and do NOT continue
 				log.Ctx(ctx).Err(err)
 				return cfg, err
@@ -206,33 +195,33 @@ func (p *GlesysNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.Pr
 	for {
 		allDone := true
 		for i := range cfg.Nodes {
-			if (cfg.Nodes[i].Requires(dependencies.K3SDependency.Name)) {
-				fmt.Printf("Node %s requires %s \n",cfg.Nodes[i].Name, dependencies.K3SDependency.Name)
+			if cfg.Nodes[i].Requires(dependencies.K3SDependency.Name) {
+				fmt.Printf("Node %s requires %s \n", cfg.Nodes[i].Name, dependencies.K3SDependency.Name)
 				allDone = false
-				if (cfg.Nodes[i].IsMaster) {
+				if cfg.Nodes[i].IsMaster {
 					cfg, err = installK3SMaster(ctx, cfg, &cfg.Nodes[i])
-					if (err != nil) {
-						if(errors.Is(err,k3s.ErrorSSHNotReady)){
+					if err != nil {
+						if errors.Is(err, k3s.ErrorSSHNotReady) {
 							err = nil
-							time.Sleep(1*time.Second)
+							time.Sleep(1 * time.Second)
 							break
 						}
 						return cfg, err
 					}
 				} else {
-					if (cfg.Nodes[i].MasterIP != nil && cfg.Nodes[i].NodeToken != "") {
+					if cfg.Nodes[i].MasterIP != nil && cfg.Nodes[i].NodeToken != "" {
 						err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], cfg.Nodes[i].MasterIP.String())
-						if (err != nil) {
-							if(errors.Is(err,k3s.ErrorSSHNotReady)){
+						if err != nil {
+							if errors.Is(err, k3s.ErrorSSHNotReady) {
 								err = nil
-								time.Sleep(1*time.Second)
+								time.Sleep(1 * time.Second)
 								break
 							}
 							return cfg, err
 						}
 
-						for di := range cfg.Nodes[i].Dependencies{
-							if(cfg.Nodes[i].Dependencies[di].Name == dependencies.K3SDependency.Name){
+						for di := range cfg.Nodes[i].Dependencies {
+							if cfg.Nodes[i].Dependencies[di].Name == dependencies.K3SDependency.Name {
 								cfg.Nodes[i].Dependencies[di].Status = ertia.DependencyStatusReady
 							}
 						}
@@ -241,21 +230,21 @@ func (p *GlesysNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.Pr
 
 					} else {
 						masterNode := cfg.FindMasterNode()
-						if (masterNode.Fulfils(dependencies.K3SDependency.Name)) {
+						if masterNode.Fulfils(dependencies.K3SDependency.Name) {
 							cfg.Nodes[i].MasterIP = masterNode.IPV4
 							cfg.Nodes[i].NodeToken = masterNode.NodeToken
 							err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], masterNode.IPV4.String())
-							if (err != nil) {
-								if(errors.Is(err,k3s.ErrorSSHNotReady)){
+							if err != nil {
+								if errors.Is(err, k3s.ErrorSSHNotReady) {
 									err = nil
-									time.Sleep(1*time.Second)
+									time.Sleep(1 * time.Second)
 									break
 								}
 								return cfg, err
 							}
 
-							for di := range cfg.Nodes[i].Dependencies{
-								if(cfg.Nodes[i].Dependencies[di].Name == dependencies.K3SDependency.Name){
+							for di := range cfg.Nodes[i].Dependencies {
+								if cfg.Nodes[i].Dependencies[di].Name == dependencies.K3SDependency.Name {
 									cfg.Nodes[i].Dependencies[di].Status = ertia.DependencyStatusReady
 								}
 							}
@@ -270,7 +259,7 @@ func (p *GlesysNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.Pr
 				}
 			}
 		}
-		if(allDone){
+		if allDone {
 			fmt.Println("All dependencies handled")
 			break
 		}
@@ -279,18 +268,18 @@ func (p *GlesysNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.Pr
 	return cfg, nil
 }
 
-func boolAddr(b bool) *bool{
+func boolAddr(b bool) *bool {
 	return &b
 }
 
-func installK3SMaster(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error){
-	nodeToken, err := k3s.InstallK3SServer(ctx, node.IPV4,node.InstallUser, node.InstallPassword)
-	if(err!=nil){
+func installK3SMaster(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error) {
+	nodeToken, err := k3s.InstallK3SServer(ctx, node.IPV4, node.InstallUser, node.InstallPassword)
+	if err != nil {
 		return cfg, err
 	}
 
-	for di := range node.Dependencies{
-		if(node.Dependencies[di].Name == dependencies.K3SDependency.Name){
+	for di := range node.Dependencies {
+		if node.Dependencies[di].Name == dependencies.K3SDependency.Name {
 			node.Dependencies[di].Status = ertia.DependencyStatusReady
 		}
 	}
