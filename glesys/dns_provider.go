@@ -37,11 +37,18 @@ func (p *DNSProvider) CreateRecord(ctx context.Context, cfg *ertia.Project) (*er
 
 	ip, err := getDomainIP(cfg)
 	if err != nil {
-		return cfg, nil
+		return cfg, err
 	}
 
 	dns := cfg.DNS
+	if dns == nil {
+		return cfg, fmt.Errorf("DNS configuration not found")
+	}
+
 	domainSufix := dns.Domain
+	if len(domainSufix) == 0 {
+		return cfg, fmt.Errorf("empty domain found")
+	}
 	host := fmt.Sprintf("*%s", domainSufix)
 
 	domain, err := getDomain(domainSufix)
