@@ -4,28 +4,32 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ertia-io/config/pkg/config"
-	ertia "github.com/ertia-io/config/pkg/entities"
-	"github.com/fabled-se/goph"
-	"github.com/rs/zerolog/log"
-	"github.com/segmentio/ksuid"
 	"io/ioutil"
 	"net"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/ertia-io/config/pkg/config"
+	ertia "github.com/ertia-io/config/pkg/entities"
+	"github.com/fabled-se/goph"
+	"github.com/rs/zerolog/log"
+	"github.com/segmentio/ksuid"
 )
 
 var (
 	ErrorSSHNotReady = errors.New("SSH.NotReady")
 )
 
-func getServerInstallCmd(id string) string {
-	return fmt.Sprintf("/tmp/%s", id)
+func getServerInstallCmd(id, channel string) string {
+	return fmt.Sprintf("INSTALL_K3S_CHANNEL=%s /tmp/%s", channel, id)
 }
 
-func getAgentInstallCmd(nodeToken string, masterIp string, id string) string {
-	return fmt.Sprintf("K3S_URL=https://%s:6443 K3S_TOKEN=%s /tmp/%s", masterIp, strings.ReplaceAll(nodeToken, "\n", ""), id)
+func getAgentInstallCmd(nodeToken, masterIp, id, channel string) string {
+	return fmt.Sprintf(
+		"INSTALL_K3S_CHANNEL=%s K3S_URL=https://%s:6443 K3S_TOKEN=%s /tmp/%s",
+		channel, masterIp, strings.ReplaceAll(nodeToken, "\n", ""), id,
+	)
 }
 
 func chmodInstaller(id string) string {
@@ -58,8 +62,7 @@ func UploadK3SInstaller(c *goph.Client, id string) error {
 	return err
 }
 
-func InstallK3SServer(ctx context.Context, ip net.IP, user string, password string) (string, error) {
-
+func InstallK3SServer(ctx context.Context, ip net.IP, user, password, channel string) (string, error) {
 	fmt.Println("Installing K3S Server")
 
 	sshClient, err := tryEstablishSSHConnection(ctx, ip.String(), user, password)
@@ -89,7 +92,7 @@ func InstallK3SServer(ctx context.Context, ip net.IP, user string, password stri
 		return "", err
 	}
 
-	out, err = sshClient.RunContextEscalated(timeoutCtx, getServerInstallCmd(id))
+	out, err = sshClient.RunContextEscalated(timeoutCtx, getServerInstallCmd(id, channel))
 	if err != nil {
 		fmt.Println("Err: " + err.Error())
 		fmt.Println(string(out))
@@ -127,7 +130,7 @@ func InstallK3SServer(ctx context.Context, ip net.IP, user string, password stri
 	return string(nodeToken), nil
 }
 
-func InstallK3SAgent(ctx context.Context, node ertia.Node, masterIp string) error {
+func InstallK3SAgent(ctx context.Context, node ertia.Node, masterIp, channel string) error {
 	fmt.Println("Installing K3S Agent")
 	sshClient, err := tryEstablishSSHConnection(ctx, node.IPV4.String(), node.InstallUser, node.InstallPassword)
 	if err != nil {
@@ -156,12 +159,13 @@ func InstallK3SAgent(ctx context.Context, node ertia.Node, masterIp string) erro
 		return err
 	}
 
-	out, err = sshClient.RunContextEscalated(timeoutCtx, getAgentInstallCmd(node.NodeToken, masterIp, id))
+	out, err = sshClient.RunContextEscalated(timeoutCtx, getAgentInstallCmd(node.NodeToken, masterIp, id, channel))
 	if err != nil {
 		fmt.Println("Error:", string(out))
 		log.Ctx(ctx).Err(err).Msg(string(out))
 		return err
 	}
+
 	return nil
 }
 

@@ -3,7 +3,7 @@ module github.com/ertia-io/providers
 go 1.17
 
 require (
-	github.com/ertia-io/config v0.0.28
+	github.com/ertia-io/config v0.0.29
 	github.com/fabled-se/goph v1.3.2
 	github.com/glesys/glesys-go/v3 v3.0.0
 	github.com/hetznercloud/hcloud-go v1.33.1

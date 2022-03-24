@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"time"
+
 	ertia "github.com/ertia-io/config/pkg/entities"
 	"github.com/ertia-io/providers/dependencies"
 	"github.com/ertia-io/providers/k3s"
 	"github.com/hetznercloud/hcloud-go/hcloud"
 	"github.com/rs/zerolog/log"
-	"strconv"
-	"time"
 )
 
 type HetznerNodeProvider struct {
@@ -204,7 +205,7 @@ func (p *HetznerNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.P
 					}
 				} else {
 					if cfg.Nodes[i].MasterIP != nil && cfg.Nodes[i].NodeToken != "" {
-						err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], cfg.Nodes[i].MasterIP.String())
+						err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], cfg.Nodes[i].MasterIP.String(), cfg.K3SChannel)
 						if err != nil {
 							if errors.Is(err, k3s.ErrorSSHNotReady) {
 								err = nil
@@ -230,7 +231,7 @@ func (p *HetznerNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.P
 						if masterNode.Fulfils(dependencies.K3SDependency.Name) {
 							cfg.Nodes[i].MasterIP = masterNode.IPV4
 							cfg.Nodes[i].NodeToken = masterNode.NodeToken
-							err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], masterNode.IPV4.String())
+							err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], masterNode.IPV4.String(), cfg.K3SChannel)
 							if err != nil {
 								if errors.Is(err, k3s.ErrorSSHNotReady) {
 									err = nil
@@ -270,7 +271,7 @@ func boolAddr(b bool) *bool {
 }
 
 func installK3SMaster(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error) {
-	nodeToken, err := k3s.InstallK3SServer(ctx, node.IPV4, node.InstallUser, node.InstallPassword)
+	nodeToken, err := k3s.InstallK3SServer(ctx, node.IPV4, node.InstallUser, node.InstallPassword, cfg.K3SChannel)
 	if err != nil {
 		return cfg, err
 	}

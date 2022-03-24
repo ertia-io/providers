@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"time"
+
 	ertia "github.com/ertia-io/config/pkg/entities"
 	"github.com/ertia-io/providers/dependencies"
 	"github.com/ertia-io/providers/k3s"
 	"github.com/glesys/glesys-go/v3"
 	"github.com/rs/zerolog/log"
 	"k8s.io/apimachinery/pkg/util/uuid"
-	"net"
-	"time"
 )
 
 const ErtiaUserAgent = "ERTIA: Frictionless Kubernetes"
@@ -103,7 +104,7 @@ func (p *GlesysNodeProvider) CreateNode(ctx context.Context, cfg *ertia.Project,
 
 func (p *GlesysNodeProvider) DeleteNode(ctx context.Context, cfg *ertia.Project, nodeId string) (*ertia.Project, error) {
 	node := cfg.FindNodeByID(nodeId)
-	err := p.Client.Servers.Destroy(ctx, node.ProviderID, glesys.DestroyServerParams{false})
+	err := p.Client.Servers.Destroy(ctx, node.ProviderID, glesys.DestroyServerParams{KeepIP: false})
 
 	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Send()
@@ -210,7 +211,7 @@ func (p *GlesysNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.Pr
 					}
 				} else {
 					if cfg.Nodes[i].MasterIP != nil && cfg.Nodes[i].NodeToken != "" {
-						err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], cfg.Nodes[i].MasterIP.String())
+						err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], cfg.Nodes[i].MasterIP.String(), cfg.K3SChannel)
 						if err != nil {
 							if errors.Is(err, k3s.ErrorSSHNotReady) {
 								err = nil
@@ -233,7 +234,7 @@ func (p *GlesysNodeProvider) SyncDependencies(ctx context.Context, cfg *ertia.Pr
 						if masterNode.Fulfils(dependencies.K3SDependency.Name) {
 							cfg.Nodes[i].MasterIP = masterNode.IPV4
 							cfg.Nodes[i].NodeToken = masterNode.NodeToken
-							err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], masterNode.IPV4.String())
+							err := k3s.InstallK3SAgent(ctx, cfg.Nodes[i], masterNode.IPV4.String(), cfg.K3SChannel)
 							if err != nil {
 								if errors.Is(err, k3s.ErrorSSHNotReady) {
 									err = nil
@@ -273,7 +274,7 @@ func boolAddr(b bool) *bool {
 }
 
 func installK3SMaster(ctx context.Context, cfg *ertia.Project, node *ertia.Node) (*ertia.Project, error) {
-	nodeToken, err := k3s.InstallK3SServer(ctx, node.IPV4, node.InstallUser, node.InstallPassword)
+	nodeToken, err := k3s.InstallK3SServer(ctx, node.IPV4, node.InstallUser, node.InstallPassword, cfg.K3SChannel)
 	if err != nil {
 		return cfg, err
 	}
